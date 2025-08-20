@@ -1,3 +1,5 @@
+import { signReleaseFile, getPublicKey, GPGConfig } from './gpg';
+
 interface PackageMetadata {
   Package: string;
   Version: string;
@@ -87,6 +89,67 @@ export async function getRelease(kvIndex: KVNamespace): Promise<string> {
   await kvIndex.put('cache:release', release, { expirationTtl: 300 });
   
   return release;
+}
+
+export async function getInRelease(kvIndex: KVNamespace, gpgConfig?: GPGConfig): Promise<string> {
+  // Check cache first
+  const cached = await kvIndex.get('cache:inrelease');
+  if (cached) {
+    return cached;
+  }
+
+  if (!gpgConfig) {
+    throw new Error('GPG configuration required for signed release');
+  }
+
+  // Generate Release file
+  const release = await generateReleaseFile(kvIndex);
+  
+  // Sign the release file
+  const { inRelease } = await signReleaseFile(release, gpgConfig);
+  
+  // Cache for 5 minutes
+  await kvIndex.put('cache:inrelease', inRelease, { expirationTtl: 300 });
+  
+  return inRelease;
+}
+
+export async function getReleaseGpg(kvIndex: KVNamespace, gpgConfig?: GPGConfig): Promise<string> {
+  // Check cache first
+  const cached = await kvIndex.get('cache:release.gpg');
+  if (cached) {
+    return cached;
+  }
+
+  if (!gpgConfig) {
+    throw new Error('GPG configuration required for signed release');
+  }
+
+  // Generate Release file
+  const release = await generateReleaseFile(kvIndex);
+  
+  // Sign the release file
+  const { detachedSignature } = await signReleaseFile(release, gpgConfig);
+  
+  // Cache for 5 minutes
+  await kvIndex.put('cache:release.gpg', detachedSignature, { expirationTtl: 300 });
+  
+  return detachedSignature;
+}
+
+export async function getGpgPublicKey(gpgConfig: GPGConfig): Promise<string> {
+  return await getPublicKey(gpgConfig);
+}
+
+export async function clearSignedCaches(kvIndex: KVNamespace): Promise<void> {
+  // Clear all cached signed files when packages are updated
+  await Promise.all([
+    kvIndex.delete('cache:release'),
+    kvIndex.delete('cache:inrelease'),
+    kvIndex.delete('cache:release.gpg'),
+    kvIndex.delete('cache:packages'),
+    kvIndex.delete('cache:packages.gz')
+  ]);
 }
 
 async function generatePackagesFile(kvIndex: KVNamespace): Promise<string> {

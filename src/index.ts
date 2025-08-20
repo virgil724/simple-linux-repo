@@ -5,17 +5,46 @@ import {
   getRelease,
   getPackagesGz,
   getPackage,
+  getInRelease,
+  getReleaseGpg,
+  getGpgPublicKey,
+  clearSignedCaches,
 } from "./repository";
 import { verifyTOTP } from "./auth";
 import { getWebInterface } from "./web";
+import { validateGPGConfig, GPGConfig } from "./gpg";
 
 type Bindings = {
   REPO_BUCKET: R2Bucket;
   PACKAGE_INDEX: KVNamespace;
   TOTP_SECRET: string;
+  GPG_PRIVATE_KEY?: string;
+  GPG_PASSPHRASE?: string;
+  GPG_KEY_ID?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
+
+// Helper function to get GPG config
+function getGPGConfig(env: Bindings): GPGConfig | null {
+  if (!env.GPG_PRIVATE_KEY) {
+    return null;
+  }
+  
+  const config: GPGConfig = {
+    privateKeyArmored: env.GPG_PRIVATE_KEY,
+    passphrase: env.GPG_PASSPHRASE,
+    keyId: env.GPG_KEY_ID,
+  };
+  
+  try {
+    validateGPGConfig(config);
+    return config;
+  } catch (error) {
+    console.error('Invalid GPG configuration:', error);
+    return null;
+  }
+}
 
 // Web interface
 app.get("/", (c) => {
@@ -46,6 +75,10 @@ app.post("/api/upload", async (c) => {
       c.env.REPO_BUCKET,
       c.env.PACKAGE_INDEX
     );
+    
+    // Clear signed caches when a new package is uploaded
+    await clearSignedCaches(c.env.PACKAGE_INDEX);
+    
     return c.json(result);
   } catch (error) {
     console.error("Upload error:", error);
@@ -57,6 +90,60 @@ app.post("/api/upload", async (c) => {
 app.get("/dists/stable/Release", async (c) => {
   const release = await getRelease(c.env.PACKAGE_INDEX);
   return c.text(release);
+});
+
+// Signed Release file (inline signature)
+app.get("/dists/stable/InRelease", async (c) => {
+  const gpgConfig = getGPGConfig(c.env);
+  if (!gpgConfig) {
+    return c.json({ error: "GPG not configured" }, 503);
+  }
+  
+  try {
+    const inRelease = await getInRelease(c.env.PACKAGE_INDEX, gpgConfig);
+    return c.text(inRelease, 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+    });
+  } catch (error) {
+    console.error("InRelease generation error:", error);
+    return c.json({ error: "Failed to generate signed release" }, 500);
+  }
+});
+
+// Detached signature for Release file
+app.get("/dists/stable/Release.gpg", async (c) => {
+  const gpgConfig = getGPGConfig(c.env);
+  if (!gpgConfig) {
+    return c.json({ error: "GPG not configured" }, 503);
+  }
+  
+  try {
+    const releaseGpg = await getReleaseGpg(c.env.PACKAGE_INDEX, gpgConfig);
+    return c.text(releaseGpg, 200, {
+      "Content-Type": "application/pgp-signature",
+    });
+  } catch (error) {
+    console.error("Release.gpg generation error:", error);
+    return c.json({ error: "Failed to generate signature" }, 500);
+  }
+});
+
+// GPG public key endpoint
+app.get("/gpg-key.asc", async (c) => {
+  const gpgConfig = getGPGConfig(c.env);
+  if (!gpgConfig) {
+    return c.json({ error: "GPG not configured" }, 503);
+  }
+  
+  try {
+    const publicKey = await getGpgPublicKey(gpgConfig);
+    return c.text(publicKey, 200, {
+      "Content-Type": "application/pgp-keys",
+    });
+  } catch (error) {
+    console.error("Public key extraction error:", error);
+    return c.json({ error: "Failed to get public key" }, 500);
+  }
 });
 
 app.get("/dists/stable/main/binary-amd64/Packages", async (c) => {

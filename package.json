@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "hono": "^3.11.0",
+    "openpgp": "^6.2.0",
     "otpauth": "^9.2.0"
   }
 }

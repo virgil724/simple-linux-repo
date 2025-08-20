@@ -12,3 +12,6 @@ id = "***REDACTED_KV_NAMESPACE_ID***"
 
 [vars]
 TOTP_SECRET = "***REDACTED_TOTP_SECRET***"
+# GPG_PRIVATE_KEY = ""     # Set this with: wrangler secret put GPG_PRIVATE_KEY
+# GPG_PASSPHRASE = ""      # Set this with: wrangler secret put GPG_PASSPHRASE (if key is encrypted)
+# GPG_KEY_ID = ""          # Optional: Set this with the key ID for reference

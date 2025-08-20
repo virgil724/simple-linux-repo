@@ -81,12 +81,16 @@ Use any TOTP authenticator app (Google Authenticator, Authy, etc.):
 - ✅ Web upload interface
 - ✅ Gzip compression for package lists
 - ✅ MD5/SHA1/SHA256 checksums
+- ✅ GPG package signing for production security
 
 ## API Endpoints
 
 - `GET /` - Web upload interface
 - `POST /api/upload` - Upload package (requires TOTP)
 - `GET /dists/stable/Release` - Repository release file
+- `GET /dists/stable/InRelease` - Signed repository release file (inline)
+- `GET /dists/stable/Release.gpg` - Detached signature for Release file
+- `GET /gpg-key.asc` - Public GPG key for repository verification
 - `GET /dists/stable/main/binary-amd64/Packages` - Package index
 - `GET /dists/stable/main/binary-amd64/Packages.gz` - Compressed package index
 - `GET /pool/main/:letter/:package/:filename` - Download packages
@@ -104,9 +108,72 @@ npx wrangler dev
 npm run deploy
 ```
 
+## GPG Package Signing Setup
+
+For production use, enable GPG signing to ensure package integrity and authenticity.
+
+### 1. Generate GPG Keys
+
+Use the provided setup script to generate GPG keys:
+
+```bash
+# Generate keys for your repository
+node scripts/setup-gpg.js "Linux Repository" "repo@yourdomain.com"
+```
+
+This will:
+- Generate a 4096-bit RSA key pair
+- Export the keys in the correct format
+- Provide setup instructions
+
+### 2. Configure Cloudflare Workers
+
+Set the GPG private key as a secret:
+
+```bash
+# Set the private key (paste when prompted)
+wrangler secret put GPG_PRIVATE_KEY
+
+# Optionally set the key ID for reference
+wrangler secret put GPG_KEY_ID
+
+# If your key has a passphrase (recommended for production)
+wrangler secret put GPG_PASSPHRASE
+```
+
+### 3. Configure APT Client (Secure)
+
+Add the repository with signature verification:
+
+```bash
+# Download and add the public key
+curl -fsSL https://your-worker.workers.dev/gpg-key.asc | sudo gpg --dearmor -o /etc/apt/keyrings/custom-repo.gpg
+
+# Add repository with signature verification
+echo "deb [signed-by=/etc/apt/keyrings/custom-repo.gpg] https://your-worker.workers.dev/ stable main" | sudo tee /etc/apt/sources.list.d/custom.list
+
+# Update package list
+sudo apt update
+
+# Install packages (now with signature verification)
+sudo apt install your-package-name
+```
+
+### 4. Verify Signatures
+
+Check that signatures are working:
+
+```bash
+# Download and verify Release file signature
+curl -s https://your-worker.workers.dev/dists/stable/Release > Release
+curl -s https://your-worker.workers.dev/dists/stable/Release.gpg > Release.gpg
+gpg --verify Release.gpg Release
+```
+
 ## Security Notes
 
 - TOTP secret should be kept secure
+- GPG private key must be kept secure and never committed to version control
 - Consider adding IP restrictions in production
 - Add rate limiting for upload endpoint
-- Implement package signing with GPG for production use
+- Use encrypted GPG keys with strong passphrases for production
