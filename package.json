@@ -1,0 +1,29 @@
+{
+  "name": "simple-linux-repo",
+  "version": "1.0.0",
+  "description": "Linux APT repository with Cloudflare Workers and R2",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "keywords": [
+    "apt",
+    "repository",
+    "cloudflare",
+    "workers",
+    "r2"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240419.0",
+    "typescript": "^5.0.0",
+    "wrangler": "^3.0.0"
+  },
+  "dependencies": {
+    "hono": "^3.11.0",
+    "otpauth": "^9.2.0"
+  }
+}

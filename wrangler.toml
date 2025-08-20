@@ -1,0 +1,14 @@
+name = "linux-repo"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "REPO_BUCKET"
+bucket_name = "linux-repo"
+
+[[kv_namespaces]]
+binding = "PACKAGE_INDEX"
+id = "***REDACTED_KV_NAMESPACE_ID***"
+
+[vars]
+TOTP_SECRET = "***REDACTED_TOTP_SECRET***"
