@@ -23,7 +23,7 @@
     "wrangler": "^3.0.0"
   },
   "dependencies": {
-    "hono": "^3.11.0",
+    "hono": "^4.10.7",
     "otpauth": "^9.2.0"
   }
 }
